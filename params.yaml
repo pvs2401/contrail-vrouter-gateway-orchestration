@@ -1,0 +1,40 @@
+---
+credentials:
+    user: admin
+    tenant: admin
+    password: c0ntrail123
+    api_server: localhost
+    api_port: 8082
+
+resource:
+    gw_vrouters:
+        - name: lanner-svl-03
+          operation: add
+          vendor: lanner
+          model: 7245c
+          ip: 10.87.65.10
+
+        - name: lanner-svl-04
+          operation: add
+          vendor: lanner
+          model: 7245c
+          ip: 10.87.65.11
+
+    physical_intfs:
+        - name: eth0
+          operation: add
+          connected_vrouter: lanner-svl-03
+
+        - name: eth0
+          operation: add
+          connected_vrouter: lanner-svl-04
+
+    baremetalservers:
+        - name: bms1
+          operation: add
+          mac:  90:e2:ba:aa:81:20
+          vn: net1
+          fixed_ip: 192.168.1.4  # Optional
+          vlan: 4
+          phy_intf: eth0
+          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
