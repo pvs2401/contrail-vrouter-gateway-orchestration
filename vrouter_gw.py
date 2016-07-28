@@ -4,7 +4,6 @@ import yaml
 from requests.exceptions import *
 from cfgm_common.exceptions import *
 
-
 class VrouterGw(object):
     def __init__(self,filename=None):
         self.vroutergw_params={}
@@ -27,40 +26,63 @@ class VrouterGw(object):
         except RuntimeError:
             print "Failed to connect !!!"
             raise;
-    def tasks(self):
+    def add_tasks(self):
         # Add/delete/display a vrouter gateway object
         if 'gw_vrouters' in self.vroutergw_params['resource'].keys():
             for gw_vrouter in self.vroutergw_params['resource']['gw_vrouters']:
                 if gw_vrouter['operation'] == 'noop':
                     pass
-                else:
-                    self.VncPhyRouter(operation=gw_vrouter['operation'],
-                                    hostname=gw_vrouter['name'],
+                elif gw_vrouter['operation'] == 'add':
+                    self.AddRouter( hostname=gw_vrouter['name'],
                                     vendor=gw_vrouter['vendor'],
                                     model=gw_vrouter['model'],
                                     ip_addr=gw_vrouter['ip'])
-        elif 'physical_intfs' in self.vroutergw_params['resource'].keys():
+                else:
+                    pass
+
+        if 'physical_intfs' in self.vroutergw_params['resource'].keys():
             for phys_intf in self.vroutergw_params['resource']['physical_intfs']:
                 if phys_intf['operation'] == 'noop':
                     pass
+                elif phys_intf['operation'] == 'add':
+                    self.AddPort(name=phys_intf['name'],
+                                 router=phys_intf['connected_vrouter'])
                 else:
-                    self.VncPhyIntf(name=phys_intf['name'],
-                                    operation=phys_intf['operation'],
-                                    physical_rtr=phys_intf['connected_vrouter'])
+                    pass
         elif 'baremetalservers' in self.vroutergw_params['resource'].keys():
             for bms in self.vroutergw_params['resource']['baremetalservers']:
                 if bms['operation'] == 'noop':
                     pass
-                else:
+                elif bms['operation'] == 'add':
                     self.VncVmi(operation=bms['operation'],
                                 vn=bms['vn'],
                                 mac=bms['mac'],
                                 fixed_ip=bms['fixed_ip'],
                                 phy_intf=bms['phy_intf'],
                                 vlan_id=bms['vlan'])
+                else:
+                    pass
         else:
             pass
-    def VncPhyRouter(self,hostname,vendor,model,ip_addr,operation):
+    def del_tasks(self):
+        if 'physical_intfs' in self.vroutergw_params['resource'].keys():
+            for phys_intf in self.vroutergw_params['resource']['physical_intfs']:
+                if phys_intf['operation'] == 'noop':
+                    pass
+                elif phys_intf['operation'] == 'delete':
+                    self.DelPort(name=phys_intf['name'],router=phys_intf['connected_vrouter'])
+                else:
+                    pass
+        if 'gw_vrouters' in self.vroutergw_params['resource'].keys():
+            for gw_vrouter in self.vroutergw_params['resource']['gw_vrouters']:
+                if gw_vrouter['operation'] == 'noop':
+                    pass
+                elif gw_vrouter['operation'] == 'delete':
+                    self.DelRouter(name=gw_vrouter['name'])
+                else:
+                    pass
+
+    def AddRouter(self,hostname,ip_addr,vendor=None,model=None):
         try:
             gs=self.vh.global_system_config_read(fq_name=['default-global-system-config'])
         except Exception as e:
@@ -79,8 +101,72 @@ class VrouterGw(object):
         except Exception as e:
             print "Unable to create the physical router"
             print str(e)
-            exit(1)
+            return False
         return uuid
+
+    def DelRouter(self,name):
+        try:
+            self.vh.physical_router_delete(fq_name=['default-global-system-config',name])
+            print "Successfully deleted router %s" %(name)
+        except Exception as e:
+            print "Unable to delete the physical router %s" %(name)
+            print str(e)
+            return False
+    def AddPort(self,name,router):
+        try:
+            parent=self.vh.physical_router_read(fq_name=['default-global-system-config',router])
+        except Exception as e:
+            print "Unable to get the parent object"
+            print str(e)
+            return False
+        pif = vnc_api.PhysicalInterface(name=name, parent_obj=parent)
+        try:
+            uuid=self.vh.physical_interface_create(pif)
+            print "Successfully created physical inetrface %s for router %s, uuid is %s" %(name,router,uuid)
+        except Exception as e:
+            print "Unable to create the interface"
+            print str(e)
+            return False
+    def DelPort(self,name,router):
+        try:
+            self.vh.physical_interface_delete(fq_name=['default-global-system-config',router,name])
+            print "Successfully deleted physical inetrface %s for router %s" %(name,router)
+        except Exception as e:
+            print "Unable to delete the interface"
+            print str(e)
+            return False
+    def AddBMS(self,name,mac,ip_addr,vn,vlan):
+        try:
+            proj=self.vh.project_read(fq_name=[u'default-domain',self.vroutergw_params['credentials']['tenant']])
+        except Exception as e:
+            print "Unable to read the project object"
+            print str(e)
+        vmi=vnc_api.VirtualMachineInterface(name=name,parent_obj=proj)
+        mac_obj = vnc_api.MacAddressesType()
+        mac_obj.add_mac_address(mac)
+        vmi.set_virtual_machine_interface_mac_addresses(mac_obj)
+        vmi.set_display_name(name)
+        vn_obj= vh.virtual_network_read(fq_name = [u'default-domain', self.vroutergw_params['credentials']['tenant'], vn])
+        vmi.add_virtual_network(vn_obj)
+        try:
+            uuid=self.vh.virtual_machine_interface_create(vmi)
+            print "Successfully created the VMI %s , uuid is %s" %(name,uuid)
+        except Exception as e:
+            print "Unable to create the VMI"
+            print str(e)
+        iip =vnc_api.InstanceIp(name=name)
+        iip.set_instance_ip_family('v4')
+        vmi=self.vh.virtual_machine_interface_read(id=uuid)
+        iip.add_virtual_machine_interface(vmi)
+        iip.add_virtual_network(vn_obj)
+        iip.set_instance_ip_address(ip_addr)
+        try:
+            uuid=self.vh.instance_ip_create(iip)
+            print "Successfully created the instance IP address object , uuid is %s" %(uuid)
+        except Exception as e:
+            print "Unable to create the instance IP object"
+            print str(e)
+
 
 if __name__=='__main__':
     v=VrouterGw()
