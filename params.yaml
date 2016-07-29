@@ -34,31 +34,29 @@ resource:
           operation: delete
           mac: 00:00:00:aa:bb:cc
           vn: STP
-          fixed_ip: 9.9.9.10  # Optional
+          fixed_ip: 9.9.9.10
           vlan: 0
           phy_intf: eth0
-          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
+          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]
 
         - name: bms1
           operation: delete
           mac:  90:e2:ba:aa:81:20
           vn: net1
-          fixed_ip: 192.168.1.4  # Optional
+          fixed_ip: 192.168.1.11
           vlan: 4
           phy_intf: eth0
           fip: 653cc835-8c9e-4393-9b58-20eaea7ee46a
           sg: [ icmp_only ]
-          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
+          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]
 
         - name: bms2
           operation: delete
           mac: 54:4b:8c:a8:8c:0d
           vn: net1
-          fixed_ip: 192.168.1.5  # Optional
+          fixed_ip: 192.168.1.12
           vlan: 5
           phy_intf: eth0
           fip: db9c5282-c34c-4738-bfc4-e2a511f42d74
           sg: [ icmp_only ]
-          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
-
-
+          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]
