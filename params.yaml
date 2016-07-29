@@ -30,6 +30,15 @@ resource:
           connected_vrouter: lanner-svl-04
 
     baremetalservers:
+        - name: stp
+          operation: add
+          mac: 00:00:00:aa:bb:cc
+          vn: STP
+          fixed_ip: 9.9.9.10  # Optional
+          vlan: 0
+          phy_intf: eth0
+          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
+
         - name: bms1
           operation: add
           mac:  90:e2:ba:aa:81:20
@@ -38,3 +47,14 @@ resource:
           vlan: 4
           phy_intf: eth0
           connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
+
+        - name: bms2
+          operation: add
+          mac: 54:4b:8c:a8:8c:0d
+          vn: net1
+          fixed_ip: 192.168.1.5  # Optional
+          vlan: 5
+          phy_intf: eth0
+          connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
+
+

@@ -3,13 +3,14 @@ from vnc_api import vnc_api
 import yaml
 from requests.exceptions import *
 from cfgm_common.exceptions import *
+import pdb
 
 class VrouterGw(object):
     def __init__(self,filename=None):
         self.vroutergw_params={}
         self.vh=None
 
-        with open('params1.yaml','r') as fh:
+        with open('params.yaml','r') as fh:
             self.vroutergw_params.update(yaml.load(fh))
 
         self.vh=self.ConnectApiServer(host=self.vroutergw_params['credentials']['api_server'],
@@ -49,22 +50,28 @@ class VrouterGw(object):
                                  router=phys_intf['connected_vrouter'])
                 else:
                     pass
-        elif 'baremetalservers' in self.vroutergw_params['resource'].keys():
+        if 'baremetalservers' in self.vroutergw_params['resource'].keys():
             for bms in self.vroutergw_params['resource']['baremetalservers']:
                 if bms['operation'] == 'noop':
                     pass
                 elif bms['operation'] == 'add':
-                    self.VncVmi(operation=bms['operation'],
-                                vn=bms['vn'],
+                    self.AddBMS(name=bms['name'],
                                 mac=bms['mac'],
-                                fixed_ip=bms['fixed_ip'],
-                                phy_intf=bms['phy_intf'],
-                                vlan_id=bms['vlan'])
+                                ip_addr=bms['fixed_ip'],
+                                vn=bms['vn'],
+                                vlan=bms['vlan'],
+                                port=bms['phy_intf'],
+                                connected_routers=bms['connected_vrouters'])
+
+    def del_tasks(self):
+        if 'baremetalservers' in self.vroutergw_params['resource'].keys():
+            for bms in self.vroutergw_params['resource']['baremetalservers']:
+                if bms['operation'] == 'noop':
+                    pass
+                elif bms['operation'] == 'delete':
+                    self.DelBMS(name=bms['name'],connected_routers=bms['connected_vrouters'],port=bms['phy_intf'],vlan=bms['vlan'])
                 else:
                     pass
-        else:
-            pass
-    def del_tasks(self):
         if 'physical_intfs' in self.vroutergw_params['resource'].keys():
             for phys_intf in self.vroutergw_params['resource']['physical_intfs']:
                 if phys_intf['operation'] == 'noop':
@@ -102,6 +109,10 @@ class VrouterGw(object):
             print "Unable to create the physical router"
             print str(e)
             return False
+        physical_router_obj=self.vh.physical_router_read(id=uuid)
+        vrouter_obj=self.vh.virtual_router_read(fq_name=[u'default-global-system-config',hostname])
+        physical_router_obj.set_virtual_router(vrouter_obj)
+        self.vh.physical_router_update(physical_router_obj)
         return uuid
 
     def DelRouter(self,name):
@@ -135,7 +146,7 @@ class VrouterGw(object):
             print "Unable to delete the interface"
             print str(e)
             return False
-    def AddBMS(self,name,mac,ip_addr,vn,vlan):
+    def AddBMS(self,name,mac,ip_addr,vn,vlan,connected_routers,port):
         try:
             proj=self.vh.project_read(fq_name=[u'default-domain',self.vroutergw_params['credentials']['tenant']])
         except Exception as e:
@@ -146,7 +157,7 @@ class VrouterGw(object):
         mac_obj.add_mac_address(mac)
         vmi.set_virtual_machine_interface_mac_addresses(mac_obj)
         vmi.set_display_name(name)
-        vn_obj= vh.virtual_network_read(fq_name = [u'default-domain', self.vroutergw_params['credentials']['tenant'], vn])
+        vn_obj= self.vh.virtual_network_read(fq_name = [u'default-domain', self.vroutergw_params['credentials']['tenant'], vn])
         vmi.add_virtual_network(vn_obj)
         try:
             uuid=self.vh.virtual_machine_interface_create(vmi)
@@ -156,6 +167,7 @@ class VrouterGw(object):
             print str(e)
         iip =vnc_api.InstanceIp(name=name)
         iip.set_instance_ip_family('v4')
+        print "%s" %(uuid)
         vmi=self.vh.virtual_machine_interface_read(id=uuid)
         iip.add_virtual_machine_interface(vmi)
         iip.add_virtual_network(vn_obj)
@@ -166,8 +178,42 @@ class VrouterGw(object):
         except Exception as e:
             print "Unable to create the instance IP object"
             print str(e)
+        # Add the logical interface and associate the VMI
+        for phys_rtr in connected_routers:
+            pif_fq_name=[u'default-global-system-config', phys_rtr, port]
+            pif_obj=self.vh.physical_interface_read(fq_name=pif_fq_name)
+            lif_name="%s.%s" %(str(port),str(vlan))
+            lif_obj=vnc_api.LogicalInterface(name=lif_name, parent_obj=pif_obj, display_name=lif_name)
+            lif_obj.set_logical_interface_vlan_tag(vlan)
+            try:
+                uuid=self.vh.logical_interface_create(lif_obj)
+                print "Successfully created the logical interface %s, uuid is %s" %(lif_name,uuid)
+            except Exception as e:
+                print "Unable to create the logical interface"
+                print str(e)
+            lif_obj=self.vh.logical_interface_read(id=uuid)
+            vmi_obj=self.vh.virtual_machine_interface_read(fq_name=[u'default-domain', self.vroutergw_params['credentials']['tenant'],name])
+            lif_obj.add_virtual_machine_interface(vmi_obj)
+            self.vh.logical_interface_update(lif_obj)
 
+    def DelBMS(self,name,connected_routers,port,vlan):
+        for rtr in connected_routers:
+            lif_name="%s.%s" %(port,str(vlan))
+            lif_fq_name=[u'default-global-system-config',rtr,port,lif_name]
+            try:
+                self.vh.logical_interface_delete(fq_name=lif_fq_name)
+                print "Successfully deleted the logical interface for the BMS"
+            except Exception as e:
+                print "Unable to delete the object"
+                print str(e)
+        try:
+            self.vh.instance_ip_delete(fq_name=[name])
+            self.vh.virtual_machine_interface_delete(fq_name=[u'default-domain', self.vroutergw_params['credentials']['tenant'], name])
+        except Exception as e:
+            print "Failed to delete the IIP and the VMI"
+            print str(e)
 
 if __name__=='__main__':
     v=VrouterGw()
-    import pdb;pdb.set_trace()
+    v.add_tasks()
+    v.del_tasks()
