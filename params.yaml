@@ -9,29 +9,29 @@ credentials:
 resource:
     gw_vrouters:
         - name: lanner-svl-03
-          operation: add
+          operation: delete
           vendor: lanner
           model: 7245c
           ip: 10.87.65.10
 
         - name: lanner-svl-04
-          operation: add
+          operation: delete
           vendor: lanner
           model: 7245c
           ip: 10.87.65.11
 
     physical_intfs:
         - name: eth0
-          operation: add
+          operation: delete
           connected_vrouter: lanner-svl-03
 
         - name: eth0
-          operation: add
+          operation: delete
           connected_vrouter: lanner-svl-04
 
     baremetalservers:
         - name: stp
-          operation: add
+          operation: delete
           mac: 00:00:00:aa:bb:cc
           vn: STP
           fixed_ip: 9.9.9.10  # Optional
@@ -40,21 +40,25 @@ resource:
           connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
 
         - name: bms1
-          operation: add
+          operation: delete
           mac:  90:e2:ba:aa:81:20
           vn: net1
           fixed_ip: 192.168.1.4  # Optional
           vlan: 4
           phy_intf: eth0
+          fip: 653cc835-8c9e-4393-9b58-20eaea7ee46a
+          sg: [ icmp_only ]
           connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
 
         - name: bms2
-          operation: add
+          operation: delete
           mac: 54:4b:8c:a8:8c:0d
           vn: net1
           fixed_ip: 192.168.1.5  # Optional
           vlan: 5
           phy_intf: eth0
+          fip: db9c5282-c34c-4738-bfc4-e2a511f42d74
+          sg: [ icmp_only ]
           connected_vrouters: [ lanner-svl-03, lanner-svl-04 ]  #Optional
 
 

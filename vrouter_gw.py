@@ -50,8 +50,14 @@ class VrouterGw(object):
                                  router=phys_intf['connected_vrouter'])
                 else:
                     pass
+        sg=None
+        fip=None
         if 'baremetalservers' in self.vroutergw_params['resource'].keys():
             for bms in self.vroutergw_params['resource']['baremetalservers']:
+                if 'sg' in bms.keys():
+                    sg=bms['sg']
+                if 'fip' in bms.keys():
+                    fip=bms['fip']
                 if bms['operation'] == 'noop':
                     pass
                 elif bms['operation'] == 'add':
@@ -61,15 +67,23 @@ class VrouterGw(object):
                                 vn=bms['vn'],
                                 vlan=bms['vlan'],
                                 port=bms['phy_intf'],
-                                connected_routers=bms['connected_vrouters'])
+                                connected_routers=bms['connected_vrouters'],
+                                fip_id=fip,
+                                sg_list=sg)
 
     def del_tasks(self):
         if 'baremetalservers' in self.vroutergw_params['resource'].keys():
+            sg=None
+            fip=None
             for bms in self.vroutergw_params['resource']['baremetalservers']:
+                if 'sg' in bms.keys():
+                    sg=bms['sg']
+                if 'fip' in bms.keys():
+                    fip=bms['fip']
                 if bms['operation'] == 'noop':
                     pass
                 elif bms['operation'] == 'delete':
-                    self.DelBMS(name=bms['name'],connected_routers=bms['connected_vrouters'],port=bms['phy_intf'],vlan=bms['vlan'])
+                    self.DelBMS(name=bms['name'],connected_routers=bms['connected_vrouters'],port=bms['phy_intf'],vlan=bms['vlan'],fip_id=fip)
                 else:
                     pass
         if 'physical_intfs' in self.vroutergw_params['resource'].keys():
@@ -146,7 +160,7 @@ class VrouterGw(object):
             print "Unable to delete the interface"
             print str(e)
             return False
-    def AddBMS(self,name,mac,ip_addr,vn,vlan,connected_routers,port):
+    def AddBMS(self,name,mac,ip_addr,vn,vlan,connected_routers,port,sg_list=None,fip_id=None):
         try:
             proj=self.vh.project_read(fq_name=[u'default-domain',self.vroutergw_params['credentials']['tenant']])
         except Exception as e:
@@ -178,6 +192,18 @@ class VrouterGw(object):
         except Exception as e:
             print "Unable to create the instance IP object"
             print str(e)
+        
+        # Associate the FIP and the SG
+        if sg_list:
+            for i in sg_list:
+                sg=self.vh.security_group_read(fq_name=[u'default-domain', self.vroutergw_params['credentials']['tenant'],i])
+                vmi.add_security_group(sg)
+                self.vh.virtual_machine_interface_update(vmi)
+        if fip_id:
+            fip=self.vh.floating_ip_read(id=fip_id)
+            fip.set_virtual_machine_interface(vmi)
+            self.vh.floating_ip_update(fip)
+
         # Add the logical interface and associate the VMI
         for phys_rtr in connected_routers:
             pif_fq_name=[u'default-global-system-config', phys_rtr, port]
@@ -196,7 +222,7 @@ class VrouterGw(object):
             lif_obj.add_virtual_machine_interface(vmi_obj)
             self.vh.logical_interface_update(lif_obj)
 
-    def DelBMS(self,name,connected_routers,port,vlan):
+    def DelBMS(self,name,connected_routers,port,vlan,fip_id=None):
         for rtr in connected_routers:
             lif_name="%s.%s" %(port,str(vlan))
             lif_fq_name=[u'default-global-system-config',rtr,port,lif_name]
@@ -206,6 +232,11 @@ class VrouterGw(object):
             except Exception as e:
                 print "Unable to delete the object"
                 print str(e)
+        if fip_id:
+            fip=self.vh.floating_ip_read(id=fip_id)
+            vmi=self.vh.virtual_machine_interface_read(fq_name=[u'default-domain', self.vroutergw_params['credentials']['tenant'], name])
+            fip.del_virtual_machine_interface(vmi)
+            self.vh.floating_ip_update(fip)
         try:
             self.vh.instance_ip_delete(fq_name=[name])
             self.vh.virtual_machine_interface_delete(fq_name=[u'default-domain', self.vroutergw_params['credentials']['tenant'], name])
