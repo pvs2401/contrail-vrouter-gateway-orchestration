@@ -9,7 +9,6 @@ class VrouterGw(object):
     def __init__(self,filename=None):
         self.vroutergw_params={}
         self.vh=None
-
         with open('params.yaml','r') as fh:
             self.vroutergw_params.update(yaml.load(fh))
 
