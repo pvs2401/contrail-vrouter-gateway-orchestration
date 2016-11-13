@@ -19,15 +19,27 @@ class UpdateVMI(object):
 		if self._args['user']:
 			self._username=self._args['user']
 		else:
-			self._username=os.environ['OS_USERNAME']
+			try:
+				self._username=os.environ['OS_USERNAME']
+			except KeyError:
+				print "Either source the openstack credentials or provide the credentials as command line argument"
+				sys.exit()
 		if self._args['password']:
 			self._password=self._args['password']
 		else:
-			self._password=os.environ['OS_PASSWORD']
+			try:
+				self._password=os.environ['OS_PASSWORD']
+			except KeyError:
+				print "Either source the openstack credentials or provide the credentials as command line argument"
+				sys.exit()
 		if self._args['tenant']:
 			self._tenant=self._args['tenant']
 		else:
-			self._tenant=os.environ['OS_TENANT_NAME']
+			try:
+				self._tenant=os.environ['OS_TENANT_NAME']
+			except KeyError:
+				print "Either source the openstack credentials or provide the credentials as command line argument"
+				sys.exit()
 		self._cmd=self._args['cmd']
 		if self._args['cmd'] in ('enable' , 'disable'):
 			if self._args['vmi']:
@@ -46,8 +58,8 @@ class UpdateVMI(object):
 
 	@staticmethod
 	def dump_vmi(vh):
-		print '{:50} {:45} {:25} {:25} {:15}'.format('uuid','vn_fq_name','mac_address','ip_address','policy_disabled')
-		print '-----------------------------------------------------------------------------------------------------------------------------------------------------------------'
+		print '{:45} {:40} {:20} {:20} {:15}'.format('uuid','vn_fq_name','mac_address','ip_address','policy_disabled')
+		print '---------------------------------------------------------------------------------------------------------------------------------------------------'
 		for var1 in vh.virtual_machine_interfaces_list()['virtual-machine-interfaces']:
 			vmi_uuid=var1['uuid']
 			vmi=vh.virtual_machine_interface_read(id=vmi_uuid)
@@ -56,7 +68,7 @@ class UpdateVMI(object):
 			vmi_iip=vmi.get_instance_ip_back_refs()[0]['uuid']
 			vmi_ip=vh.instance_ip_read(id=vmi_iip).instance_ip_address
 			vmi_policy_flag='True' if vmi.get_virtual_machine_interface_disable_policy() else 'False'
-			print '{:50} {:45} {:25} {:25} {:15}'.format(vmi_uuid,vn_fq_name,vmi_mac,vmi_ip,vmi_policy_flag)
+			print '{:45} {:40} {:20} {:20} {:15}'.format(vmi_uuid,vn_fq_name,vmi_mac,vmi_ip,vmi_policy_flag)
 		return True
 
 	@staticmethod
